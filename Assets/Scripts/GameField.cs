@@ -83,7 +83,6 @@ public class GameField : MonoBehaviour
                 {
                     var a = selected.transform.parent.parent.GetComponent<WhiteField>();
                     var b = hitObject.GetComponent<WhiteField>();
-                    var possMoves = board.possMoves();
                     var move = extrapolateMove(new Pos((byte)a.IndexY, (byte)a.IndexX), 
                         new Pos((byte)b.IndexY, (byte)b.IndexX));
                     if (move != null)
