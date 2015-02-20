@@ -10,4 +10,13 @@ public class GameLoader : MonoBehaviour
         GameMode = mode;
         Application.LoadLevel("main");
     }
+
+    public void Quit()
+    {
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
+    }
 }

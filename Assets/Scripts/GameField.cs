@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 
 using Laska;
@@ -13,11 +14,16 @@ public class GameField : MonoBehaviour
     public GameObject SoldierPrefab;
     public GameObject OfficerPrefab;
 
+    public GameObject IngameGUI;
+    public GameObject EndGUI;
+
     public Material BlackMaterial;
     public Material WhiteMaterial;
 
     public Text WhiteMessage;
     public Text BlackMessage;
+
+    public Text Winner;
 
     private Board board;
 
@@ -26,7 +32,7 @@ public class GameField : MonoBehaviour
 
     private ArtificialPlayer ai;
 
-    void Start()
+    public void Start()
     {
         board = new Board();
         board.Init();
@@ -47,6 +53,7 @@ public class GameField : MonoBehaviour
                     var field = fieldObject.GetComponent<WhiteField>();
                     field.IndexX = i;
                     field.IndexY = j;
+                    field.SetGameField(this);
                 }
                 else
                 {
@@ -56,6 +63,7 @@ public class GameField : MonoBehaviour
                 }
             }
         }
+        UpdateAllTowers();
     }
 
     public Tower this[int i, int j]
@@ -136,32 +144,26 @@ public class GameField : MonoBehaviour
         {
             selected.renderer.material.color = lastColor;
         }
-        selected = tower.transform.GetChild(0).gameObject;
+        selected = tower.transform.GetChild(tower.transform.childCount - 1).gameObject;
         lastColor = selected.renderer.material.color;
         selected.renderer.material.color = Color.cyan;
     }
 
     public IEnumerator Move(Move move)
     {
-        if (selected)
+        foreach (var field in transform.GetComponentsInChildren<WhiteField>())
         {
-            selected.renderer.material.color = lastColor;
-        }
-        else
-        {
-            foreach (var field in transform.GetComponentsInChildren<WhiteField>())
+            if (field.IndexX == move[0].Col.Col && field.IndexY == move[0].Row.Row)
             {
-                if (field.IndexX == move[0].Col.Col && field.IndexY == move[0].Row.Row)
-                {
-                    selected = field.transform.GetChild(0).gameObject;
-                }
+                selected = field.transform.GetChild(0).gameObject;
             }
         }
+
         Vector3 from = selected.transform.position;
         Vector3 to = new Vector3(move.lastPos().Col.Col + .5f, from.y, move.lastPos().Row.Row + .5f);
-        for (float f = 0; f < 1; f += .1f)
+        for (int i = 0; i < 10; ++i)
         {
-            selected.transform.position = Vector3.Lerp(from, to, f);
+            selected.transform.position = Vector3.Lerp(from, to, i / 10f);
             yield return null;
         }
         UpdateAllTowers();
@@ -170,29 +172,87 @@ public class GameField : MonoBehaviour
 
     public IEnumerator ChangeCameraAngle()
     {
-        int deg = 5;
-        for (int i = 0; i < 180; i += deg)
+        bool isPvP = GameLoader.GameMode.ToLower() != "ai";
+        if (isPvP)
         {
-            Camera.main.transform.RotateAround(collider.bounds.center, Vector3.up, deg  );
-            yield return null;
+            int deg = 5;
+            for (int i = 0; i < 180; i += deg)
+            {
+                Camera.main.transform.RotateAround(collider.bounds.center, Vector3.up, deg);
+                yield return null;
+            }
         }
-        if (GameLoader.GameMode.ToLower() == "ai" && board.Turn == Colour.Black)
+        else
         {
             var moves = board.possMoves();
             if (moves.Count > 0)
             {
-                var move = moves.OrderBy(m => ai.Minimax(board.doMove(m), 5, true)).First();
-                board = board.doMove(move);
-                StartCoroutine(Move(move));
+                if (board.Turn == Colour.White)
+                {
+                    var ratedMoves = new Dictionary<Move, ArtificialPlayer.Result>(moves.Count);
+                    foreach (var move in moves)
+                    {
+                        ratedMoves.Add(move, ai.MinimaxAsync(board.doMove(move), 5, true));
+                    }
+                    bool hasWaited = false;
+                    foreach (var entry in ratedMoves.Keys)
+                    {
+                        while (!ratedMoves[entry].Finished)
+                        {
+                            hasWaited = true;
+                            // SUSPEND COROUTINE UNTIL ALL MOVES HAVE BEEN RATED
+                            yield return null;
+                        }
+                    }
+                    if (!hasWaited)
+                    {
+                        // WAIT ONE FRAME TO AWAIT PENDING DESTROYS
+                        yield return null;
+                    }
+                    var highest = ratedMoves.OrderBy(keyValue => keyValue.Value.Value.Value).First().Key;
+                    board = board.doMove(highest);
+                    StartCoroutine(Move(highest));
+                }
+                else
+                {
+                    var move = moves.ToList()[Random.Range(0, moves.Count - 1)];
+                    board = board.doMove(move);
+                    // WAIT ONE FRAME TO AWAIT PENDING DESTROYS
+                    yield return null;
+                    StartCoroutine(Move(move));
+                }
+            }
+            else
+            {
+                EndGUI.SetActive(true);
+                IngameGUI.SetActive(false);
+                Winner.text = board.Turn == Colour.Black ? "WHITE" : "BLACK";
+                StartCoroutine(WinnerRotation());
             }
         }
     }
 
+    IEnumerator WinnerRotation()
+    {
+        float angle = 0;
+        int stepSize = 2;
+        float startY = Camera.main.transform.position.y;
+        while (true)
+        {
+            var delta = Time.deltaTime;
+            Camera.main.transform.RotateAround(collider.bounds.center, Vector3.up, stepSize * delta * 75);
+            Vector3 position = Camera.main.transform.position;
+            position.y = startY + Mathf.Sin(angle * Mathf.Deg2Rad);
+            Camera.main.transform.position = position;
+            angle += stepSize * delta * 75;
+            yield return null;
+        }
+    }
 
     public GameObject createTower(Tower tower)
     {
         GameObject towerObject = new GameObject("Tower");
-        for (int i = 0; i < tower.Count; i++)
+        for (int i = tower.Count - 1; i >= 0; --i)
         {
             var counter = createCounter(tower.Get(i));
             counter.transform.parent = towerObject.transform;
