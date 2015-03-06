@@ -25,21 +25,38 @@ public class GameField : MonoBehaviour
 
     public Text Winner;
 
-    private Board board;
+    public Board board;
 
     private Color lastColor;
     private GameObject selected;
 
     private ArtificialPlayer ai;
 
+	private NetHandler cachedNetHandler;
+	
+	public bool LockInput;
+	
     public void Start()
     {
+		cachedNetHandler = GetComponent<NetHandler>();
+		
         board = new Board();
         board.Init();
-        if (GameLoader.GameMode.ToLower() == "ai")
-        {
-            ai = new ArtificialPlayer();
-        }
+		switch (GameLoader.GameMode)
+		{
+			case GameMode.PLAYER_VS_AI:
+				ai = new ArtificialPlayer();
+				break;
+			case GameMode.AI_VS_PLAYER:
+				ai = new ArtificialPlayer();
+				break;
+			case GameMode.LOCAL_VS_REMOTE:
+				cachedNetHandler.InitializeServer();
+				break;
+			case GameMode.REMOTE_VS_LOCAL:
+				cachedNetHandler.InitializeClient();
+				break;
+		}
         for (int i = 0; i < 7; i++)
         {
             for (int j = 0; j < 7; j++)
@@ -74,9 +91,14 @@ public class GameField : MonoBehaviour
         }
     }
 
+	public bool IsValid(Move move)
+	{
+		return board.possMoves().Contains(move);
+	}
+	
     public void Update()
     {
-        if (Input.GetMouseButtonDown(0))
+        if (!LockInput && Input.GetMouseButtonDown(0))
         {
             Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
             RaycastHit hit;
@@ -95,8 +117,14 @@ public class GameField : MonoBehaviour
                         new Pos((byte)b.IndexY, (byte)b.IndexX));
                     if (move != null)
                     {
-                        board = board.doMove(move);
-                        StartCoroutine(Move(move));
+						if (GameLoader.GameMode == GameMode.REMOTE_VS_LOCAL || GameLoader.GameMode == GameMode.LOCAL_VS_REMOTE)
+						{
+							cachedNetHandler.RequestAcknowledge(move);
+						}
+						else
+						{
+							DoMove(move);
+						}
                     }
                 }
             }
@@ -124,6 +152,12 @@ public class GameField : MonoBehaviour
             }
         }
     }
+	
+	public void DoMove(Move move) 
+	{
+		board = board.doMove(move);
+		StartCoroutine(Move(move));
+	}
 
     private Move extrapolateMove(Pos a, Pos b)
     {
@@ -172,8 +206,7 @@ public class GameField : MonoBehaviour
 
     public IEnumerator ChangeCameraAngle()
     {
-        bool isPvP = GameLoader.GameMode.ToLower() != "ai";
-        if (isPvP)
+        if (GameLoader.GameMode == GameMode.LOCAL_VS_LOCAL)
         {
             int deg = 5;
             float amp = .2f;
@@ -185,54 +218,50 @@ public class GameField : MonoBehaviour
                 yield return null;
             }
         }
-        else
-        {
-            var moves = board.possMoves();
-            if (moves.Count > 0)
-            {
-                if (board.Turn == Colour.White)
-                {
-                    var ratedMoves = new Dictionary<Move, ArtificialPlayer.Result>(moves.Count);
-                    foreach (var move in moves)
-                    {
-                        ratedMoves.Add(move, ai.MinimaxAsync(board.doMove(move), 5, true));
-                    }
-                    bool hasWaited = false;
-                    foreach (var entry in ratedMoves.Keys)
-                    {
-                        while (!ratedMoves[entry].Finished)
-                        {
-                            hasWaited = true;
-                            // SUSPEND COROUTINE UNTIL ALL MOVES HAVE BEEN RATED
-                            yield return null;
-                        }
-                    }
-                    if (!hasWaited)
-                    {
-                        // WAIT ONE FRAME TO AWAIT PENDING DESTROYS
-                        yield return null;
-                    }
-                    var highest = ratedMoves.OrderBy(keyValue => keyValue.Value.Value.Value).First().Key;
-                    board = board.doMove(highest);
-                    StartCoroutine(Move(highest));
-                }
-                else
-                {
-                    var move = moves.ToList()[Random.Range(0, moves.Count - 1)];
-                    board = board.doMove(move);
-                    // WAIT ONE FRAME TO AWAIT PENDING DESTROYS
-                    yield return null;
-                    StartCoroutine(Move(move));
-                }
-            }
-            else
-            {
-                EndGUI.SetActive(true);
-                IngameGUI.SetActive(false);
-                Winner.text = board.Turn == Colour.Black ? "WHITE" : "BLACK";
-                StartCoroutine(WinnerRotation());
-            }
-        }
+		var moves = board.possMoves();
+		if (moves.Count == 0) {			
+			EndGUI.SetActive(true);
+			IngameGUI.SetActive(false);
+			Winner.text = board.Turn == Colour.Black ? "WHITE" : "BLACK";
+			StartCoroutine(WinnerRotation());
+		} 
+		else if (GameLoader.GameMode == GameMode.AI_VS_PLAYER || GameLoader.GameMode == GameMode.PLAYER_VS_AI)
+		{
+			if (board.Turn == Colour.White)
+			{
+				var ratedMoves = new Dictionary<Move, ArtificialPlayer.Result>(moves.Count);
+				foreach (var move in moves)
+				{
+					ratedMoves.Add(move, ai.MinimaxAsync(board.doMove(move), 5, true));
+				}
+				bool hasWaited = false;
+				foreach (var entry in ratedMoves.Keys)
+				{
+					while (!ratedMoves[entry].Finished)
+					{
+						hasWaited = true;
+						// SUSPEND COROUTINE UNTIL ALL MOVES HAVE BEEN RATED
+						yield return null;
+					}
+				}
+				if (!hasWaited)
+				{
+					// WAIT ONE FRAME TO AWAIT PENDING DESTROYS
+					yield return null;
+				}
+				var highest = ratedMoves.OrderBy(keyValue => keyValue.Value.Value.Value).First().Key;
+				board = board.doMove(highest);
+				StartCoroutine(Move(highest));
+			}
+			else
+			{
+				var move = moves.ToList()[Random.Range(0, moves.Count - 1)];
+				board = board.doMove(move);
+				// WAIT ONE FRAME TO AWAIT PENDING DESTROYS
+				yield return null;
+				StartCoroutine(Move(move));
+			}
+		}
     }
 
     IEnumerator WinnerRotation()

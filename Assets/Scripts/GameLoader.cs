@@ -1,15 +1,21 @@
 ﻿using UnityEngine;
-using System.Collections;
+using System;
 
 public class GameLoader : MonoBehaviour
 {
-    public static string GameMode = "PvP";
-
-    public void LoadGame(string mode)
+    public static GameMode GameMode = GameMode.LOCAL_VS_LOCAL;
+	
+	
+    public void LoadGame(GameMode mode)
     {
         GameMode = mode;
         Application.LoadLevel("main");
     }
+	
+	public void LoadGame(string mode) 
+	{
+		LoadGame((GameMode)Enum.Parse(typeof(GameMode), mode));
+	}
 
     public void Quit()
     {
