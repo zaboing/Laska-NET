@@ -176,9 +176,12 @@ public class GameField : MonoBehaviour
         if (isPvP)
         {
             int deg = 5;
+            float amp = .2f;
             for (int i = 0; i < 180; i += deg)
             {
                 Camera.main.transform.RotateAround(collider.bounds.center, Vector3.up, deg);
+                Vector3 delta = new Vector3(0, Mathf.Cos(i * Mathf.Deg2Rad) * amp, 0);
+                Camera.main.transform.position = Camera.main.transform.position + delta;
                 yield return null;
             }
         }
