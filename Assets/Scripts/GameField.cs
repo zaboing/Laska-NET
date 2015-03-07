@@ -32,31 +32,20 @@ public class GameField : MonoBehaviour
 
     private ArtificialPlayer ai;
 
-	private NetHandler cachedNetHandler;
-	
 	public bool LockInput;
 	
     public void Start()
-    {
-		cachedNetHandler = GetComponent<NetHandler>();
-		
+    {		
         board = new Board();
         board.Init();
-		switch (GameLoader.GameMode)
-		{
-			case GameMode.PLAYER_VS_AI:
-				ai = new ArtificialPlayer();
-				break;
-			case GameMode.AI_VS_PLAYER:
-				ai = new ArtificialPlayer();
-				break;
-			case GameMode.LOCAL_VS_REMOTE:
-				cachedNetHandler.InitializeServer();
-				break;
-			case GameMode.REMOTE_VS_LOCAL:
-				cachedNetHandler.InitializeClient();
-				break;
-		}
+        if (GameLoader.IsVsAI)
+        {
+            ai = new ArtificialPlayer();
+        }
+        if (GameLoader.LockFirstMove)
+        {
+            LockInput = true;
+        }
         for (int i = 0; i < 7; i++)
         {
             for (int j = 0; j < 7; j++)
@@ -119,7 +108,7 @@ public class GameField : MonoBehaviour
                     {
 						if (GameLoader.GameMode == GameMode.REMOTE_VS_LOCAL || GameLoader.GameMode == GameMode.LOCAL_VS_REMOTE)
 						{
-							cachedNetHandler.RequestAcknowledge(move);
+							RequestAcknowledge(move);
 						}
 						else
 						{
@@ -314,4 +303,52 @@ public class GameField : MonoBehaviour
         }
         return counterObject;
     }
+
+    private void OnPlayerDisconnected(NetworkPlayer player)
+    {
+        Debug.Log("Player disconnected");
+        Network.RemoveRPCs(player);
+        Network.DestroyPlayerObjects(player);
+        Network.Disconnect();
+    }
+
+    private void OnDisconnectedFromServer(NetworkDisconnection info)
+    {
+        // Todo: Error Message on Disconnect
+        Application.LoadLevel("menu");
+    }
+
+    #region Network Code
+
+    private string requestedMove;
+
+    public void RequestAcknowledge(Move move)
+    {
+        LockInput = true;
+        requestedMove = move.ToString();
+        networkView.RPC("RemoteMove", RPCMode.Others, requestedMove);
+    }
+
+    [RPC]
+    public void RemoteMove(string moveString)
+    {
+        Move move = new Move(moveString);
+        if (IsValid(move))
+        {
+            DoMove(move);
+            networkView.RPC("AcknowledgeMove", RPCMode.Others, moveString);
+            LockInput = false;
+        }
+    }
+
+    [RPC]
+    public void AcknowledgeMove(string move)
+    {
+        if (move == requestedMove)
+        {
+            DoMove(new Move(move));
+        }
+    }
+
+    #endregion
 }
