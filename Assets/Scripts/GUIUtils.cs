@@ -16,6 +16,16 @@ public class GUIUtils : MonoBehaviour
         if (currentGUI)
         {
             currentGUI.SetActive(true);
+            SendMessages(currentGUI.transform, "OpenedAsGUI");
+        }
+    }
+
+    private static void SendMessages(Transform transform, string message)
+    {
+        transform.gameObject.SendMessage(message, SendMessageOptions.DontRequireReceiver);
+        for (int i = transform.childCount - 1; i >= 0; --i)
+        {
+            SendMessages(transform.GetChild(i), message);
         }
     }
 

@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using UnityEngine.UI;
+using System.Collections;
 
 using Laska;
 using Newtonsoft.Json;
@@ -16,6 +17,12 @@ public class ServerList : MonoBehaviour
     {
         utils = GameObject.FindObjectOfType<GUIUtils>();
     }
+	
+	// To be called by GUIUtils
+    public void OpenedAsGUI()
+	{
+		StartCoroutine(RefreshLoop());
+	}
 
     public void LoadServers()
     {
@@ -57,7 +64,7 @@ public class ServerList : MonoBehaviour
     {
         for (int i = transform.childCount - 1; i >= 0; --i)
         {
-            Destroy(transform.GetChild(i));
+            Destroy(transform.GetChild(i).gameObject);
         }
     }
 
@@ -70,4 +77,12 @@ public class ServerList : MonoBehaviour
         info = JsonConvert.DeserializeAnonymousType(host.comment, info);
         NetHandler.ClientColor = info.color;
     }
+	
+	private IEnumerator RefreshLoop()
+	{
+		while (true) {
+			yield return new WaitForSeconds(2);
+			LoadServers();
+		}
+	}
 }
