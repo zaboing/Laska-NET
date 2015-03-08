@@ -70,6 +70,11 @@ public class GameField : MonoBehaviour
             }
         }
         UpdateAllTowers();
+
+        if (GameLoader.GameMode == GameMode.AI_VS_PLAYER)
+        {
+            StartCoroutine(AIMove());
+        }
     }
 
     public Tower this[int i, int j]
@@ -208,49 +213,50 @@ public class GameField : MonoBehaviour
             }
         }
 		var moves = board.possMoves();
-		if (moves.Count == 0) {			
-			EndGUI.SetActive(true);
-			IngameGUI.SetActive(false);
-			Winner.text = board.Turn == Colour.Black ? "WHITE" : "BLACK";
-			StartCoroutine(WinnerRotation());
-		} 
-		else if (GameLoader.GameMode == GameMode.AI_VS_PLAYER || GameLoader.GameMode == GameMode.PLAYER_VS_AI)
-		{
-			if (board.Turn == Colour.White)
-			{
-				var ratedMoves = new Dictionary<Move, ArtificialPlayer.Result>(moves.Count);
-				foreach (var move in moves)
-				{
-					ratedMoves.Add(move, ai.MinimaxAsync(board.doMove(move), 5, true));
-				}
-				bool hasWaited = false;
-				foreach (var entry in ratedMoves.Keys)
-				{
-					while (!ratedMoves[entry].Finished)
-					{
-						hasWaited = true;
-						// SUSPEND COROUTINE UNTIL ALL MOVES HAVE BEEN RATED
-						yield return null;
-					}
-				}
-				if (!hasWaited)
-				{
-					// WAIT ONE FRAME TO AWAIT PENDING DESTROYS
-					yield return null;
-				}
-				var highest = ratedMoves.OrderBy(keyValue => keyValue.Value.Value.Value).First().Key;
-				board = board.doMove(highest);
-				StartCoroutine(Move(highest));
-			}
-			else
-			{
-				var move = moves.ToList()[Random.Range(0, moves.Count - 1)];
-				board = board.doMove(move);
-				// WAIT ONE FRAME TO AWAIT PENDING DESTROYS
-				yield return null;
-				StartCoroutine(Move(move));
-			}
-		}
+        if (moves.Count == 0)
+        {
+            EndGUI.SetActive(true);
+            IngameGUI.SetActive(false);
+            Winner.text = board.Turn == Colour.Black ? "WHITE" : "BLACK";
+            StartCoroutine(WinnerRotation());
+        }
+        else if (GameLoader.GameMode == GameMode.AI_VS_PLAYER && board.Turn == Colour.White
+            || GameLoader.GameMode == GameMode.PLAYER_VS_AI && board.Turn == Colour.Black)
+        {
+            var enumerator = AIMove();
+            while (enumerator.MoveNext())
+            {
+                yield return enumerator.Current;
+            }
+        }
+    }
+
+    private IEnumerator AIMove()
+    {
+        var moves = board.possMoves();
+        var ratedMoves = new Dictionary<Move, ArtificialPlayer.Result>(moves.Count);
+        foreach (var move in moves)
+        {
+            ratedMoves.Add(move, ai.MinimaxAsync(board.doMove(move), 5, true));
+        }
+        bool hasWaited = false;
+        foreach (var entry in ratedMoves.Keys)
+        {
+            while (!ratedMoves[entry].Finished)
+            {
+                hasWaited = true;
+                // SUSPEND COROUTINE UNTIL ALL MOVES HAVE BEEN RATED
+                yield return null;
+            }
+        }
+        if (!hasWaited)
+        {
+            // WAIT ONE FRAME TO AWAIT PENDING DESTROYS
+            yield return null;
+        }
+        var highest = ratedMoves.OrderBy(keyValue => keyValue.Value.Value.Value).First().Key;
+        board = board.doMove(highest);
+        StartCoroutine(Move(highest));
     }
 
     IEnumerator WinnerRotation()

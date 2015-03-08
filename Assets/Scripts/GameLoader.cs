@@ -19,10 +19,6 @@ public class GameLoader : MonoBehaviour
     {
         get
         {
-            if (GameMode == GameMode.AI_VS_PLAYER)
-            {
-                return true;
-            }
             if (GameMode == GameMode.REMOTE_VS_LOCAL)
             {
                 Debug.Log("I AM CLIENT! " + NetHandler.ClientColor);
