@@ -42,7 +42,8 @@ public class GUIUtils : MonoBehaviour
     public void LoadGame(GameMode mode)
     {
         GameLoader.GameMode = mode;
-        Application.LoadLevel("main");
+        var progress = Application.LoadLevelAsync("main");
+        progress.allowSceneActivation = true;
     }
 
     public void Quit()

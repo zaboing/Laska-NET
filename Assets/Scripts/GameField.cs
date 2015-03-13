@@ -170,11 +170,11 @@ public class GameField : MonoBehaviour
     {
         if (selected)
         {
-            selected.renderer.material.color = lastColor;
+            selected.GetComponent<Renderer>().material.color = lastColor;
         }
         selected = tower.transform.GetChild(tower.transform.childCount - 1).gameObject;
-        lastColor = selected.renderer.material.color;
-        selected.renderer.material.color = Color.cyan;
+        lastColor = selected.GetComponent<Renderer>().material.color;
+        selected.GetComponent<Renderer>().material.color = Color.cyan;
     }
 
     public IEnumerator Move(Move move)
@@ -206,7 +206,7 @@ public class GameField : MonoBehaviour
             float amp = .2f;
             for (int i = 0; i < 180; i += deg)
             {
-                Camera.main.transform.RotateAround(collider.bounds.center, Vector3.up, deg);
+                Camera.main.transform.RotateAround(GetComponent<Collider>().bounds.center, Vector3.up, deg);
                 Vector3 delta = new Vector3(0, Mathf.Cos(i * Mathf.Deg2Rad) * amp, 0);
                 Camera.main.transform.position = Camera.main.transform.position + delta;
                 yield return null;
@@ -267,7 +267,7 @@ public class GameField : MonoBehaviour
         while (true)
         {
             var delta = Time.deltaTime;
-            Camera.main.transform.RotateAround(collider.bounds.center, Vector3.up, stepSize * delta * 75);
+            Camera.main.transform.RotateAround(GetComponent<Collider>().bounds.center, Vector3.up, stepSize * delta * 75);
             Vector3 position = Camera.main.transform.position;
             position.y = startY + Mathf.Sin(angle * Mathf.Deg2Rad);
             Camera.main.transform.position = position;
@@ -301,11 +301,11 @@ public class GameField : MonoBehaviour
         }
         if (counter.color == Colour.White)
         {
-            counterObject.renderer.material = WhiteMaterial;
+            counterObject.GetComponent<Renderer>().material = WhiteMaterial;
         }
         else
         {
-            counterObject.renderer.material = BlackMaterial;
+            counterObject.GetComponent<Renderer>().material = BlackMaterial;
         }
         return counterObject;
     }
@@ -332,7 +332,7 @@ public class GameField : MonoBehaviour
     {
         LockInput = true;
         requestedMove = move.ToString();
-        networkView.RPC("RemoteMove", RPCMode.Others, requestedMove);
+        GetComponent<NetworkView>().RPC("RemoteMove", RPCMode.Others, requestedMove);
     }
 
     [RPC]
@@ -342,7 +342,7 @@ public class GameField : MonoBehaviour
         if (IsValid(move))
         {
             DoMove(move);
-            networkView.RPC("AcknowledgeMove", RPCMode.Others, moveString);
+            GetComponent<NetworkView>().RPC("AcknowledgeMove", RPCMode.Others, moveString);
             LockInput = false;
         }
     }
